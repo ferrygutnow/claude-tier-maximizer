@@ -2,7 +2,10 @@
 listen:
   host: 127.0.0.1
   port: 5281
-upstream: https://api.anthropic.com
+upstream:
+  anthropic: https://api.anthropic.com
+  openai: https://api.openai.com
+  google: https://generativelanguage.googleapis.com
 
 # Thinking-token budget per classified level (minimum 1024 per Anthropic API).
 budgets:

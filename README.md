@@ -1,10 +1,11 @@
 # claude-tier-maximizer
 
-**Stretch your Claude Pro / Max plan by routing thinking-budget per prompt.**
+**Stretch your AI coding agent budget by routing thinking/reasoning per prompt.**
 
-An HTTP proxy that sits between Claude Code and the Anthropic API. It classifies
-every user prompt and rewrites `thinking.budget_tokens` based on actual
-complexity — so simple prompts don't burn the same reasoning budget as complex debugging.
+An HTTP proxy that sits between your coding agent (Claude Code, Codex CLI, Gemini CLI)
+and its upstream API. It classifies every user prompt and rewrites the thinking
+or reasoning budget based on actual complexity — so simple prompts don't burn
+the same budget as complex debugging.
 
 ```
 You type prompt
@@ -96,12 +97,20 @@ All LLM features auto-disable if Ollama is not available or no GPU is detected �
 Point your agent at the proxy. In the same terminal, before starting:
 
 ```bash
-# Claude Code
+# Claude Code (Anthropic)
 export ANTHROPIC_BASE_URL=http://localhost:5281
 claude
+
+# Codex CLI (OpenAI)
+export OPENAI_BASE_URL=http://localhost:5281/v1
+codex
+
+# Gemini CLI (Google)
+export GEMINI_API_KEY=your_key  # needs an API key
+export GEMINI_BASE_URL=http://localhost:5281  # most Gemini CLIs support this
 ```
 
-Or add it to your shell profile so it's always set:
+Or add to your shell profile (`~/.bashrc`, `~/.zshrc`) to always route through the proxy.
 
 ```bash
 echo 'export ANTHROPIC_BASE_URL=http://localhost:5281' >> ~/.bashrc

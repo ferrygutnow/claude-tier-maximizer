@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""claude-tier-maximizer — HTTP proxy between Claude Code and Anthropic API."""
+"""claude-tier-maximizer — HTTP proxy between coding agents and their APIs.
+
+Supports:
+  - Anthropic (Claude Code):  /v1/messages        → thinking.budget_tokens
+  - OpenAI (Codex CLI):       /v1/chat/completions → reasoning_effort
+  - Google (Gemini CLI):      /v1/models/...:generateContent → thinkingConfig
+"""
 
 from __future__ import annotations
 
@@ -25,6 +31,94 @@ from injection_detector import InjectionDetector
 from llm_fallback import LLMFallback
 
 
+# ── Provider detection ────────────────────────────────────────────────────────
+
+PROVIDER_PATHS = [
+    ("anthropic", "/v1/messages"),
+    ("openai",    "/v1/chat/completions"),
+    ("google",    "/v1beta/models/"),
+    ("google",    "/v1/models/"),
+]
+
+def detect_provider(path: str) -> str | None:
+    for provider, prefix in PROVIDER_PATHS:
+        if prefix in path:
+            return provider
+    return None
+
+
+# ── Format-specific extractors ────────────────────────────────────────────────
+
+def _extract_text_from_content(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"]
+        return " ".join(parts)
+    return ""
+
+
+def extract_last_user_text(body: dict, provider: str) -> str:
+    if provider in ("anthropic", "openai"):
+        for msg in reversed(body.get("messages", [])):
+            if msg.get("role") != "user":
+                continue
+            return _extract_text_from_content(msg.get("content", ""))
+    elif provider == "google":
+        for part in reversed(body.get("contents", [])):
+            if part.get("role") != "user":
+                continue
+            parts = part.get("parts", [])
+            texts = [p.get("text", "") for p in parts if isinstance(p, dict) and "text" in p]
+            if texts:
+                return " ".join(texts)
+    return ""
+
+
+def extract_context(body: dict, provider: str) -> str:
+    """Extract the last assistant response for context (truncated 500)."""
+    if provider in ("anthropic", "openai"):
+        for msg in reversed(body.get("messages", [])):
+            if msg.get("role") != "assistant":
+                continue
+            return _extract_text_from_content(msg.get("content", ""))[:500]
+    elif provider == "google":
+        for part in reversed(body.get("contents", [])):
+            if part.get("role") != "model":
+                continue
+            parts = part.get("parts", [])
+            texts = [p.get("text", "") for p in parts if isinstance(p, dict) and "text" in p]
+            if texts:
+                return " ".join(texts)[:500]
+    return ""
+
+
+# ── Format-specific budget application ────────────────────────────────────────
+
+BUDGET_LEVELS = {
+    "low": 1,
+    "medium": 2,
+    "high": 3,
+    "xhigh": 4,
+}
+
+REASONING_EFFORT = {"low": "low", "medium": "medium", "high": "high"}
+GEMINI_THINKING_BUDGET = {"low": 1024, "medium": 4000, "high": 16000}
+
+
+def apply_budget(body: dict, level: str, budgets: dict, provider: str) -> None:
+    tokens = int(budgets.get(level, budgets.get("medium", 4000)))
+    if provider == "anthropic":
+        body["thinking"] = {"type": "enabled", "budget_tokens": tokens}
+    elif provider == "openai":
+        if level in REASONING_EFFORT:
+            body["reasoning_effort"] = REASONING_EFFORT[level]
+    elif provider == "google":
+        body["thinkingConfig"] = {"thinkingBudget": GEMINI_THINKING_BUDGET.get(level, 4000)}
+
+
+# ── Logging & config ──────────────────────────────────────────────────────────
+
 def setup_logging(cfg: dict) -> None:
     lvl = getattr(logging, cfg.get("level", "INFO").upper(), logging.INFO)
     decisions_path = cfg.get("decisions", "/var/log/claude-tier-maximizer/decisions.log")
@@ -47,44 +141,12 @@ class State:
     fallback: LLMFallback
     compactor: Compactor
     detector: InjectionDetector
-    upstream: str
+    upstreams: dict[str, str]
     budgets: dict
     usage_log_path: str
 
 
-def extract_context(body: dict) -> str:
-    """Extract the last assistant response for context (truncated)."""
-    for msg in reversed(body.get("messages", [])):
-        if msg.get("role") != "assistant":
-            continue
-        content = msg.get("content", "")
-        if isinstance(content, str):
-            return content[:500]
-        if isinstance(content, list):
-            parts = [c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"]
-            return " ".join(parts)[:500]
-    return ""
-
-
-def extract_last_user_text(body: dict) -> str:
-    for msg in reversed(body.get("messages", [])):
-        if msg.get("role") != "user":
-            continue
-        content = msg.get("content", "")
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            parts = [c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"]
-            return " ".join(parts)
-    return ""
-
-
-def apply_budget(body: dict, level: str, budgets: dict) -> None:
-    body["thinking"] = {"type": "enabled", "budget_tokens": int(budgets[level])}
-
-
 def write_usage(record: dict) -> None:
-    """Append one JSONL record to the usage log."""
     if not State.usage_log_path:
         return
     try:
@@ -96,7 +158,6 @@ def write_usage(record: dict) -> None:
 
 
 def _merge_usage(accumulated: dict, u: dict) -> None:
-    """Merge a usage dict into accumulated, summing numeric fields."""
     for k, v in u.items():
         if isinstance(v, (int, float)):
             accumulated[k] = accumulated.get(k, 0) + v
@@ -105,7 +166,6 @@ def _merge_usage(accumulated: dict, u: dict) -> None:
 
 
 def _parse_sse_line(line: bytes, accumulated: dict) -> None:
-    """Extract usage from a single SSE data line."""
     line = line.strip()
     if not line.startswith(b"data:"):
         return
@@ -126,11 +186,6 @@ def _parse_sse_line(line: bytes, accumulated: dict) -> None:
 
 
 def parse_sse_for_usage(buffer: bytes, accumulated: dict, flush: bool = False) -> bytes:
-    """Parse complete SSE lines from buffer, updating accumulated usage info.
-
-    Returns the remaining (incomplete) buffer.
-    Pass flush=True after the stream ends to process any trailing partial line.
-    """
     while b"\n" in buffer:
         line, buffer = buffer.split(b"\n", 1)
         _parse_sse_line(line, accumulated)
@@ -140,12 +195,17 @@ def parse_sse_for_usage(buffer: bytes, accumulated: dict, flush: bool = False) -
     return buffer
 
 
+# ── HTTP handler ──────────────────────────────────────────────────────────────
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
 
-    def _forward(self, method: str, body_bytes: bytes, classification_meta: dict | None = None) -> None:
-        url = State.upstream + self.path
+    def _forward(self, method: str, body_bytes: bytes,
+                 provider: str = "anthropic",
+                 classification_meta: dict | None = None) -> None:
+        upstream = State.upstreams.get(provider, State.upstreams.get("anthropic", ""))
+        url = upstream + self.path
         headers = {
             k: v for k, v in self.headers.items()
             if k.lower() not in ("host", "content-length", "accept-encoding")
@@ -162,8 +222,9 @@ class Handler(BaseHTTPRequestHandler):
                     break
                 except urllib.error.HTTPError as e:
                     if e.code in (429, 529) and attempt < 3:
-                        wait = 5 * (2 ** attempt)  # 5s, 10s, 20s
-                        logging.warning("HTTP %d from Anthropic, retry %d/3 in %ds", e.code, attempt + 1, wait)
+                        wait = 5 * (2 ** attempt)
+                        logging.warning("HTTP %d from %s, retry %d/3 in %ds",
+                                        e.code, provider, attempt + 1, wait)
                         time.sleep(wait)
                     else:
                         raise
@@ -209,6 +270,7 @@ class Handler(BaseHTTPRequestHandler):
                         pass
                 rec = {
                     "ts": datetime.now(timezone.utc).isoformat(),
+                    "provider": provider,
                     "level": classification_meta.get("level"),
                     "reason": classification_meta.get("reason"),
                     "preview": classification_meta.get("preview"),
@@ -228,7 +290,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(e.read())
         except Exception as e:
-            logging.exception("upstream error: %s", e)
+            logging.exception("upstream error [%s]: %s", provider, e)
             self.send_response(502)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -240,57 +302,68 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
         body_bytes = self.rfile.read(n) if n else b""
+        provider = detect_provider(self.path)
 
-        if "/v1/messages" not in self.path:
+        if not provider:
             return self._forward("POST", body_bytes)
 
         new_body = body_bytes
         meta = None
         try:
             body = json.loads(body_bytes) if body_bytes else {}
-            raw = extract_last_user_text(body)
+            raw = extract_last_user_text(body, provider)
             cleaned = clean_text(raw, State.rules)
             if not cleaned:
                 logging.info(
-                    "level=PASSTHROUGH reason=empty_after_clean raw_len=%d model=%s stream=%s",
-                    len(raw), body.get("model"), body.get("stream", False),
+                    "provider=%s level=PASSTHROUGH reason=empty_after_clean raw_len=%d model=%s stream=%s",
+                    provider, len(raw), body.get("model") or body.get("systemInstruction", {}).get("model"),
+                    body.get("stream", False),
                 )
                 meta = {
+                    "provider": provider,
                     "level": "PASSTHROUGH", "reason": "empty_after_clean",
                     "preview": "", "model": body.get("model"),
                     "stream": body.get("stream", False), "budget_set": None,
                 }
             else:
-                ctx = extract_context(body)
+                ctx = extract_context(body, provider)
                 level, reason = classify(cleaned, State.rules, State.fallback, context=ctx)
-                apply_budget(body, level, State.budgets)
-                body["messages"], inject_stats = State.detector.process_messages(
-                    body.get("messages", [])
-                )
-                if inject_stats.get("sanitized"):
-                    logging.warning("injection_detector: %s", inject_stats)
-                body["messages"], compact_stats = State.compactor.process(body.get("messages", []))
-                if compact_stats.get("compacted") or compact_stats.get("images_scaled"):
-                    logging.info("compactor: %s", compact_stats)
+                apply_budget(body, level, State.budgets, provider)
+
+                # Injection detector & compactor work on Anthropic/OpenAI message arrays
+                msgs = body.get("messages") if provider in ("anthropic", "openai") else []
+                if msgs:
+                    msgs, inject_stats = State.detector.process_messages(msgs)
+                    if inject_stats.get("sanitized"):
+                        logging.warning("injection_detector [%s]: %s", provider, inject_stats)
+                    msgs, compact_stats = State.compactor.process(msgs)
+                    if compact_stats.get("compacted") or compact_stats.get("images_scaled"):
+                        logging.info("compactor [%s]: %s", provider, compact_stats)
+                    if provider in ("anthropic", "openai"):
+                        body["messages"] = msgs
+
                 new_body = json.dumps(body).encode()
                 logging.info(
-                    "level=%s reason=%s preview=%r model=%s stream=%s",
-                    level, reason, cleaned[:120].replace("\n", " "),
-                    body.get("model"), body.get("stream", False),
+                    "provider=%s level=%s reason=%s preview=%r model=%s stream=%s",
+                    provider, level, reason, cleaned[:120].replace("\n", " "),
+                    body.get("model") or "google", body.get("stream", False),
                 )
                 meta = {
+                    "provider": provider,
                     "level": level, "reason": reason,
                     "preview": cleaned[:200].replace("\n", " "),
-                    "model": body.get("model"),
+                    "model": body.get("model") or "google",
                     "stream": body.get("stream", False),
-                    "budget_set": State.budgets[level],
+                    "budget_set": State.budgets.get(level),
                 }
         except Exception as e:
-            logging.exception("classify error, passing through: %s", e)
+            logging.exception("classify error [%s], passing through: %s", provider, e)
             new_body = body_bytes
 
-        self._forward("POST", new_body, meta)
+        self._forward("POST", new_body, provider=provider, classification_meta=meta)
 
+
+# ── Entrypoint ────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser()
@@ -301,7 +374,14 @@ def main():
     setup_logging(cfg.get("logging") or {})
 
     State.config = cfg
-    State.upstream = cfg.get("upstream", "https://api.anthropic.com")
+    raw_upstreams = cfg.get("upstream") or {}
+    if isinstance(raw_upstreams, str):
+        raw_upstreams = {"anthropic": raw_upstreams}
+    State.upstreams = {
+        "anthropic": raw_upstreams.get("anthropic", "https://api.anthropic.com"),
+        "openai": raw_upstreams.get("openai", "https://api.openai.com"),
+        "google": raw_upstreams.get("google", "https://generativelanguage.googleapis.com"),
+    }
     State.budgets = cfg.get("budgets") or {"low": 1024, "medium": 4000, "high": 16000}
     State.usage_log_path = (cfg.get("logging") or {}).get("usage", "/var/log/claude-tier-maximizer/usage.jsonl")
     rules_cfg = cfg.get("rules") or {}
@@ -319,8 +399,9 @@ def main():
     port = int(listen.get("port", 5281))
     server = ThreadingHTTPServer((host, port), Handler)
     logging.info(
-        "claude-tier-maximizer listening on %s:%d upstream=%s budgets=%s llm_fallback=%s usage_log=%s",
-        host, port, State.upstream, State.budgets, State.fallback.enabled, State.usage_log_path,
+        "ctm listening on %s:%d upstreams=%s budgets=%s llm_fallback=%s usage_log=%s",
+        host, port, list(State.upstreams.keys()), State.budgets,
+        State.fallback.enabled, State.usage_log_path,
     )
     try:
         server.serve_forever()
