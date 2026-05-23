@@ -41,7 +41,7 @@ Without the proxy, most of those low prompts would burn medium+ budgets — effe
 | **Prompt injection shield** | `injection_detector.py` scans tool_result content for "ignore instructions", "your new role is", "send data to" — regex + optional LLM layer |
 | **Tool-result compactor** | `compactor.py` summarizes large tool outputs (2k+ chars) via local LLM before forwarding, saving input tokens. GPU-gated. Auto-downscales base64 images |
 | **Auto-tune** | `tune.py` mines `usage.jsonl` for under-classified prompts, proposes new regex patterns. Optional auto-apply with confidence thresholds |
-| **Personalization** | `personalize.py` walks your entire Claude Code session history and generates `personal.yaml` from patterns it finds |
+| **Personalization** | `personalize.py` walks your existing agent session history and generates `personal.yaml` from your actual prompts — run immediately after install, no need to wait |
 | **Weekly digest** | Cron runs calibrator + tuner every Monday 09:00 UTC, writes `digest-latest.md` |
 | **Precise override markers** | `ultrathink` / `(high thinking)` = force high. `(low thinking)` / `(no thinking)` = force low |
 
@@ -63,7 +63,7 @@ Force_low prompts that match with conversation context (last assistant response 
 |---|---|---|
 | 1 | `rules/default.yaml` | Shipped patterns (47 high, 43 low) |
 | 2 | `rules/auto.yaml` | Auto-tuned by `tune.py` when `auto_tune.enabled: true` |
-| 3 | `rules/personal.yaml` | Derived from your real session history |
+| 3 | `rules/personal.yaml` | Generated from your session history via `personalize.py` |
 
 Plus `rules/blocklist.yaml` — patterns you rejected via `ctm-review`.
 
