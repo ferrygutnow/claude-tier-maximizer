@@ -37,7 +37,7 @@ Without the proxy, most of those low prompts would burn medium+ budgets — effe
 |---|---|
 | **Thinking-budget routing** | Classify prompts as low/medium/high via layered regex + optional local LLM |
 | **Context-aware LLM fallback** | Qwen 2.5 3B (or any Ollama model) classifies ambiguous prompts with access to the last assistant response — catches follow-up intent |
-| **Personal rules** | `personal.yaml` learns your actual prompt patterns; force_low catches "ja", "do 1", "still working?", "check again" |
+| **Personal rules** | `personal.yaml` auto-generated on first proxy startup from your existing agent logs — learns your prompt patterns immediately |
 | **Secret redactor** | `scrubber.py` watches all agent log dirs (Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI) and redacts API keys, tokens, passwords in-place via regex. GPU-gated semantic LLM pass for non-obvious secrets |
 | **Prompt injection shield** | `injection_detector.py` scans tool_result content for "ignore instructions", "your new role is", "send data to" — regex + optional LLM layer |
 | **Tool-result compactor** | `compactor.py` summarizes large tool outputs (2k+ chars) via local LLM before forwarding, saving input tokens. GPU-gated. Auto-downscales base64 images |

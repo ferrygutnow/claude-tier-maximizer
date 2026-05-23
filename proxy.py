@@ -394,6 +394,29 @@ def main():
     State.compactor = Compactor(cfg.get("tool_compactor") or {})
     State.detector = InjectionDetector(cfg.get("injection_detector") or {})
 
+    # ── Auto-personalize on first run ─────────────────────────────────────
+    personal_path = (cfg.get("rules") or {}).get(
+        "personal", "/opt/claude-tier-maximizer/rules/personal.yaml"
+    )
+    if not Path(personal_path).exists():
+        logging.info("no personal.yaml found — auto-personalizing from agent logs")
+        try:
+            import subprocess
+            subprocess.run(
+                [sys.executable, str(Path(__file__).parent / "personalize.py"),
+                 "--out", personal_path],
+                timeout=120,
+            )
+            logging.info("auto-personalize complete, reloading rules")
+            rules_cfg = cfg.get("rules") or {}
+            State.rules = load_rules(
+                rules_cfg.get("default", "/opt/claude-tier-maximizer/rules/default.yaml"),
+                rules_cfg.get("auto"),
+                str(personal_path),
+            )
+        except Exception as e:
+            logging.warning("auto-personalize failed: %s", e)
+
     listen = cfg.get("listen") or {}
     host = listen.get("host", "127.0.0.1")
     port = int(listen.get("port", 5281))
