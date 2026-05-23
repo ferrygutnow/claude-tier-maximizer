@@ -77,11 +77,22 @@ Requires Python 3.9+ and [Ollama](https://ollama.ai) (for LLM features — compa
 ```bash
 git clone https://github.com/ferrygutnow/claude-tier-maximizer.git /opt/claude-tier-maximizer
 sudo apt-get install -y python3-yaml
+
+# Install the proxy (thinking-budget routing)
 sudo cp /opt/claude-tier-maximizer/systemd/claude-tier-maximizer.service /etc/systemd/system/
 sudo mkdir -p /var/log/claude-tier-maximizer
 sudo systemctl daemon-reload
 sudo systemctl enable --now claude-tier-maximizer
+
+# Install the scrubber (secret redaction — optional but recommended)
+sudo cp /opt/claude-tier-maximizer/systemd/claude-scrubber.service /etc/systemd/system/
+sudo systemctl enable --now claude-scrubber
 ```
+
+The scrubber immediately does a full scan of all existing agent logs
+(`~/.claude/projects`, `~/.codex/projects`, `~/.opencode/projects`,
+`~/.gemini/projects`, `~/.copilot/projects`), then watches in real-time
+for new content every 5 seconds.
 
 ### macOS / Windows
 
