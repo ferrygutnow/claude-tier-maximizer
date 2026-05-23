@@ -67,16 +67,31 @@ Force_low prompts that match with conversation context (last assistant response 
 
 Plus `rules/blocklist.yaml` — patterns you rejected via `ctm-review`.
 
-## Install (Linux + systemd)
+## Install
+
+Requires Python 3.9+ and [Ollama](https://ollama.ai) (for LLM features — compactor, injection detection, classifier fallback).
+
+### Linux (systemd)
 
 ```bash
-git clone <your-repo-url> /opt/claude-tier-maximizer
+git clone https://github.com/ferrygutnow/claude-tier-maximizer.git /opt/claude-tier-maximizer
 sudo apt-get install -y python3-yaml
 sudo cp /opt/claude-tier-maximizer/systemd/claude-tier-maximizer.service /etc/systemd/system/
 sudo mkdir -p /var/log/claude-tier-maximizer
 sudo systemctl daemon-reload
 sudo systemctl enable --now claude-tier-maximizer
 ```
+
+### macOS / Windows
+
+```bash
+git clone https://github.com/ferrygutnow/claude-tier-maximizer.git
+cd claude-tier-maximizer
+pip install pyyaml
+python3 proxy.py
+```
+
+All LLM features auto-disable if Ollama is not available or no GPU is detected — the proxy still works for regex-based classification alone.
 
 Point Claude Code at the proxy:
 
