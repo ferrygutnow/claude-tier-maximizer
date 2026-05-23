@@ -93,11 +93,24 @@ python3 proxy.py
 
 All LLM features auto-disable if Ollama is not available or no GPU is detected — the proxy still works for regex-based classification alone.
 
-Point Claude Code at the proxy:
+Point your agent at the proxy. In the same terminal, before starting:
 
 ```bash
+# Claude Code
 export ANTHROPIC_BASE_URL=http://localhost:5281
 claude
+
+# OpenAI Codex
+export OPENAI_BASE_URL=http://localhost:5281/v1
+codex
+
+# Any agent that supports ANTHROPIC_BASE_URL or OPENAI_BASE_URL
+```
+
+Or add it to your shell profile so it's always set:
+
+```bash
+echo 'export ANTHROPIC_BASE_URL=http://localhost:5281' >> ~/.bashrc
 ```
 
 Watch decisions:
