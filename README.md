@@ -68,11 +68,21 @@ Force_low prompts that match with conversation context (last assistant response 
 
 Plus `rules/blocklist.yaml` — patterns you rejected via `ctm-review`.
 
-## Install
+## Quick start
 
-Requires Python 3.9+ and [Ollama](https://ollama.ai) (for LLM features — compactor, injection detection, classifier fallback).
+```bash
+# One-liner install (Linux/macOS)
+curl -fsSL https://raw.githubusercontent.com/ferrygutnow/claude-tier-maximizer/main/install.sh | bash
 
-### Linux (systemd)
+# Or install all three token-saving tools at once
+curl -fsSL https://raw.githubusercontent.com/ferrygutnow/claude-tier-maximizer/main/bundle.sh | bash
+
+# Point your agent at the proxy
+export ANTHROPIC_BASE_URL=http://localhost:5281
+claude
+```
+
+## Install (detailed)
 
 ```bash
 git clone https://github.com/ferrygutnow/claude-tier-maximizer.git /opt/claude-tier-maximizer
