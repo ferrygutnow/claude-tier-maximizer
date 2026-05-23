@@ -1,6 +1,6 @@
 # claude-tier-maximizer
 
-**Stretch your AI coding agent budget by routing thinking/reasoning per prompt.**
+**Save Claude Pro/Max tokens — route thinking budget per prompt so simple tasks don't burn your daily cap.**
 
 An HTTP proxy that sits between your coding agent (Claude Code, Codex CLI, Gemini CLI)
 and its upstream API. It classifies every user prompt and rewrites the thinking
@@ -13,17 +13,17 @@ You type prompt
 Claude Code  (ANTHROPIC_BASE_URL=http://localhost:5281)
    ↓
 claude-tier-maximizer proxy
-   - extracts last user message
-   - strips system-reminders & noise
-   - classifies via regex (low / medium / high)
-   - optional LLM fallback for ambiguous prompts (Ollama, Anthropic)
-   - rewrites thinking.budget_tokens
+   - classifies prompt as low / medium / high thinking
+   - rewrites budget so simple prompts cost less
+   - catches one-word confirmations ("ja", "ok", "do 1")
+   - optionally compresses large tool outputs (saves input tokens)
+   - redacts secrets from session logs
    ↓
-api.anthropic.com
+api.anthropic.com  (or api.openai.com / Google Gemini)
    ↓
-response streams back through proxy → Claude Code
+response streams back → Claude Code
+   - usage logged to usage.jsonl for calibration
 ```
-
 On a sample of 3,814 real Claude Code prompts:
 - **25.8%** → low (1,024 budget tokens)
 - **68.6%** → medium (4,000 budget tokens)
