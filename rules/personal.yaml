@@ -1,4 +1,5 @@
-# Personal rules — derived from 8100 prompts on the Hetzner server.
+# Personal rules — example patterns derived from real usage data.
+# Replace with your own by running: python3 personalize.py
 # Takes precedence over default.yaml and auto.yaml.
 # Checked in order: force_low → explicit_high → explicit_low → high → low
 
