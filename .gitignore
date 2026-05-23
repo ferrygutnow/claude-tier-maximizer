@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.jsonl
+/var/log/
+rules/auto.yaml
+rules/blocklist.yaml
+rules/pending.yaml
+usage.jsonl
+qwen-fallback-test.md
+.DS_Store

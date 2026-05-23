@@ -1,0 +1,69 @@
+# Injection detection rules — loaded by injection_detector.py
+# Each pattern has a score: 1=weak (log only), 2=medium, 3=strong (sanitize on its own)
+# Sanitize threshold: combined score >= 3
+
+patterns:
+
+  # Strong — direct instruction override
+  - name: ignore_instructions
+    score: 3
+    regex: 'ignore\s+(all\s+)?(previous|prior|above|your)\s+(instructions?|prompts?|rules?|constraints?)'
+
+  - name: disregard_instructions
+    score: 3
+    regex: 'disregard\s+(all\s+)?(previous|prior|your)\s+(instructions?|prompts?|rules?)'
+
+  - name: new_instructions
+    score: 3
+    regex: '(your\s+new|new\s+system|updated)\s+(instructions?|prompt|rules?|objective)'
+
+  - name: system_override
+    score: 3
+    regex: '\[\s*system\s*\]|\<\s*system\s*\>|<<\s*system\s*>>'
+
+  - name: forget_everything
+    score: 3
+    regex: 'forget\s+(everything|all\s+(previous|prior|above))'
+
+  - name: jailbreak_marker
+    score: 3
+    regex: '\bjailbreak\b|\bDAN\b|\bdo\s+anything\s+now\b'
+
+  # Medium — role/identity hijack
+  - name: you_are_now
+    score: 2
+    regex: 'you\s+are\s+now\s+(a\s+|an\s+)?\w+'
+
+  - name: pretend_act_as
+    score: 2
+    regex: '(pretend|act)\s+(you\s+are|to\s+be|as\s+(a|an|if))\b'
+
+  - name: your_new_role
+    score: 2
+    regex: 'your\s+(new\s+)?(role|persona|identity|purpose|task)\s+is'
+
+  - name: assistant_override
+    score: 2
+    regex: 'you\s+are\s+(no\s+longer|not)\s+(an?\s+)?assistant'
+
+  # Medium — exfiltration
+  - name: send_data
+    score: 2
+    regex: '(send|email|post|upload|exfiltrate)\s+(all\s+)?(files?|data|keys?|secrets?|credentials?)\s+to'
+
+  - name: external_curl
+    score: 2
+    regex: '(curl|wget|fetch|http)\s+.*\.(com|net|org|io|xyz)'
+
+  # Weak — suspicious but common in legitimate content
+  - name: override_keyword
+    score: 1
+    regex: '\boverride\s+(your|all|previous)\b'
+
+  - name: hidden_instruction
+    score: 1
+    regex: '(hidden|secret|invisible)\s+instructions?'
+
+  - name: base64_instruction
+    score: 1
+    regex: '(decode|base64)\s+.*instructions?'

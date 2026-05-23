@@ -1,0 +1,16 @@
+[Unit]
+Description=claude-tier-maximizer — Claude Code thinking-budget proxy
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/claude-tier-maximizer/proxy.py --config /opt/claude-tier-maximizer/config.yaml
+Restart=always
+RestartSec=2
+User=root
+EnvironmentFile=-/etc/default/claude-tier-maximizer
+StandardOutput=append:/var/log/claude-tier-maximizer/stdout.log
+StandardError=append:/var/log/claude-tier-maximizer/stderr.log
+
+[Install]
+WantedBy=multi-user.target

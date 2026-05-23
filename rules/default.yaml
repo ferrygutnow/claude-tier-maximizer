@@ -1,0 +1,62 @@
+# Default classification rules — shipped with claude-tier-maximizer.
+# Patterns are Python regex (case-insensitive). The classifier checks in this order:
+#   1. explicit overrides (user-typed markers like "ultrathink")
+#   2. force_low (e.g. Claude Code's SUGGESTION MODE auto-complete calls)
+#   3. high patterns
+#   4. low patterns
+#   5. LLM fallback (if enabled in config)
+#   6. default -> medium
+
+clean:
+  strip_patterns:
+    - '<system-reminder>.*?</system-reminder>'
+    - '</?session>'
+    - '<task-notification>.*?</task-notification>'
+
+force_low:
+  patterns:
+    - '\[SUGGESTION MODE\b'
+
+explicit:
+  high:
+    - '\bultrathink\b'
+    - '\(\s*high\s+thinking\s*\)'
+    - '\bthink\s+(hard|harder|deeper|a\s+lot)\b'
+  low:
+    - '\(\s*(?:no|low|minimal)\s+thinking\s*\)'
+
+high:
+  - '\bdebug\b'
+  - '\binvestigate\b'
+  - 'root[\s-]?cause'
+  - "why\\s+(?:does|is|won't|isn't|doesn't|do)"
+  - '\bdesign\b'
+  - '\b(architect|architecture)\b'
+  - '\bmigrate\b'
+  - 'refactor.*(?:entire|whole|all)'
+  - 'security[\s-]?review'
+  - '\bvulnerability\b'
+  - 'plan\s+(?:the|a|out)'
+  - '\bbrainstorm\b'
+  - 'trade[\s-]?off'
+
+low:
+  - '\brename\b'
+  - '\bshow\b'
+  - '\bcat\b'
+  - '\blist\b'
+  - '\bls\b'
+  - '\bread\b'
+  - '\bdisplay\b'
+  - '\bprint\b'
+  - '\bformat\b'
+  - '\bprettify\b'
+  - 'what\s+is\b'
+  - 'where\s+is\b'
+  - 'when\s+did\b'
+  - '\bstatus\b'
+  - '\brun\b'
+  - '\bex(?:ec|ecute)\b'
+  - 'check\s+if\b'
+  - 'does\s+\w+\s+exist\b'
+  - '\bversion\b'

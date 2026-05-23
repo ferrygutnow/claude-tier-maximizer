@@ -1,0 +1,67 @@
+# claude-tier-maximizer — main configuration
+listen:
+  host: 127.0.0.1
+  port: 5281
+upstream: https://api.anthropic.com
+
+# Thinking-token budget per classified level (minimum 1024 per Anthropic API).
+budgets:
+  low: 1024
+  medium: 4000
+  high: 16000
+
+# LLM fallback for ambiguous prompts (regex returned no decision).
+llm_fallback:
+  enabled: true
+  provider: ollama
+  model: qwen2.5:3b
+  ollama_url: http://localhost:11434
+  timeout_ms: 5000
+  trigger: medium_only
+
+# Rule files — applied in this order, each appended:
+#   1. default.yaml  (shipped patterns)
+#   2. auto.yaml     (auto-tuned, if auto_tune is on)
+#   3. personal.yaml (manually approved via ctm-review, takes precedence)
+rules:
+  default:  /opt/claude-tier-maximizer/rules/default.yaml
+  auto:     /opt/claude-tier-maximizer/rules/auto.yaml
+  personal: /opt/claude-tier-maximizer/rules/personal.yaml
+
+# Auto-tune — opt-in. When enabled, weekly cron appends high-confidence
+# patterns directly to rules/auto.yaml without asking. Conservative defaults.
+auto_tune:
+  enabled: false
+  min_occurrences: 10          # phrase must show up in >=N mis-classified prompts
+  min_consistency: 0.9         # >=90% of those prompts must agree on level
+  target_file:    /opt/claude-tier-maximizer/rules/auto.yaml
+  blocklist_file: /opt/claude-tier-maximizer/rules/blocklist.yaml
+  pending_file:   /opt/claude-tier-maximizer/rules/pending.yaml
+  changelog:      /var/log/claude-tier-maximizer/auto-tune.log
+
+# Prompt injection detector — scans tool_results for hijack attempts.
+injection_detector:
+  enabled: true
+  rules_file: /opt/claude-tier-maximizer/rules/injection.yaml
+  llm:
+    enabled: true
+    model: qwen2.5:3b
+    ollama_url: http://localhost:11434
+    timeout_ms: 3000
+
+# Tool-result compactor — summarize large tool outputs with a local model.
+tool_compactor:
+  enabled: true
+  min_chars: 2000          # only compress tool_results larger than this
+  model: qwen2.5:3b
+  ollama_url: http://localhost:11434
+  timeout_ms: 8000
+  max_summary_chars: 600
+  image:
+    enabled: true
+    max_px: 768            # downscale images to fit within this dimension
+
+logging:
+  decisions: /var/log/claude-tier-maximizer/decisions.log
+  usage:     /var/log/claude-tier-maximizer/usage.jsonl
+  level: INFO

@@ -1,0 +1,51 @@
+name: lint
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-yaml-and-regex:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install pyyaml
+      - name: Validate YAML files
+        run: |
+          for f in $(find . -name "*.yaml" -o -name "*.yml"); do
+            echo "checking $f"
+            python -c "import yaml; yaml.safe_load(open('$f'))"
+          done
+      - name: Validate all regex patterns in rules
+        run: |
+          python - << 'PY'
+          import yaml, re, sys, glob
+          errors = 0
+          for path in glob.glob("rules/*.yaml"):
+              data = yaml.safe_load(open(path)) or {}
+              def check(patterns, label):
+                  global errors
+                  for p in patterns or []:
+                      try:
+                          re.compile(p, re.IGNORECASE)
+                      except re.error as e:
+                          print(f"BAD REGEX in {path} ({label}): {p!r} -- {e}")
+                          errors += 1
+              check((data.get("clean") or {}).get("strip_patterns"), "clean.strip")
+              check((data.get("force_low") or {}).get("patterns"), "force_low")
+              check((data.get("explicit") or {}).get("high"), "explicit.high")
+              check((data.get("explicit") or {}).get("low"), "explicit.low")
+              check(data.get("high"), "high")
+              check(data.get("low"), "low")
+          if errors:
+              sys.exit(1)
+          print("all regex patterns compile")
+          PY
+      - name: Python syntax check
+        run: python -m py_compile proxy.py classifier.py llm_fallback.py calibrator.py tune.py personalize.py

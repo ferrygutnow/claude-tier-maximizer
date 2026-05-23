@@ -1,0 +1,16 @@
+[Unit]
+Description=claude-scrubber — redact secrets from Claude Code session logs
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/claude-tier-maximizer/scrubber.py \
+    --watch-dir /root/.claude/projects \
+    --log-file /var/log/claude-tier-maximizer/scrubber.log \
+    --interval 5
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
