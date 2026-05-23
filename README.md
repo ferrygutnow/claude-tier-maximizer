@@ -99,12 +99,6 @@ Point your agent at the proxy. In the same terminal, before starting:
 # Claude Code
 export ANTHROPIC_BASE_URL=http://localhost:5281
 claude
-
-# OpenAI Codex
-export OPENAI_BASE_URL=http://localhost:5281/v1
-codex
-
-# Any agent that supports ANTHROPIC_BASE_URL or OPENAI_BASE_URL
 ```
 
 Or add it to your shell profile so it's always set:
